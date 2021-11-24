@@ -24,7 +24,7 @@ function schedule_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:I
         end
         push!(schedule, (idx=row.idx, type=type))
     end
-    schedule_filepath = datadir("weiss", lattice_str, "schedule.csv")
+    schedule_filepath = datadir(lattice_str, "schedule.csv")
     schedule_directory = dirname(schedule_filepath)
     isdir(schedule_directory) || mkpath(schedule_directory)
     CSV.write(schedule_filepath, schedule)

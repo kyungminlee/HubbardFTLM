@@ -44,7 +44,7 @@ function eigen_small(
 )
     lattice_str = lattice_string(latticetype, shape)
 
-    schedule_filepath = datadir("weiss", lattice_str, "schedule.csv")
+    schedule_filepath = datadir(lattice_str, "schedule.csv")
     schedule_table = CSV.read(schedule_filepath, DataFrame)
     filter!(row->row.type == "small", schedule_table)
     sectors = Int[]
@@ -162,8 +162,8 @@ function eigen_dense(
     @mylogmsg "Opening DB file"
 
     lattice_str = lattice_string(latticetype, shape)
-    dense_filepath = datadir("weiss", lattice_str, "eigen-dense-results.parquet")
-    temp_filepath = datadir("weiss", lattice_str, "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).csv")
+    dense_filepath = datadir(lattice_str, "eigen", "eigen-dense-results.parquet")
+    temp_filepath = datadir(lattice_str, "eigen", "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).csv")
 
     ResultType = NamedTuple{(:idx, :hopping, :interaction, :eigenindex, :eigenvalue),
                          Tuple{Int, Float64, Float64, Int, Float64}}
@@ -244,7 +244,7 @@ end
 function parse_commandline()
     s = ArgParse.ArgParseSettings()
     @add_arg_table! s begin
-        "shape"
+        "lattice"
             arg_type = String
             help = "shape of the lattice in the format lattice-(?,?)x(?,?)"
             required = true
@@ -279,7 +279,7 @@ function main()
         global_logger(logger)
     end
 
-    latticetype, shape = parse_lattice(parsed_args["shape"])
+    latticetype, shape = parse_lattice(parsed_args["lattice"])
     t = parsed_args["hopping"]
     U = parsed_args["interaction"]
 
@@ -288,6 +288,7 @@ function main()
     force = parsed_args["force"]
 
     @mylogmsg "Starting $(first(ARGS))"
+    @mylogmsg "latticetype: $latticetype"
     @mylogmsg "shape: $shape"
     @mylogmsg "t: $t"
     @mylogmsg "U: $U"

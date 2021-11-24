@@ -22,7 +22,8 @@ using ProgressMeter
 using DataFrames
 using CSV
 
-using Parquet
+using HDF5
+using JSON
 
 using UUIDs
 
@@ -162,24 +163,31 @@ function eigen_dense(
     @mylogmsg "Opening DB file"
 
     lattice_str = lattice_string(latticetype, shape)
-    dense_filepath = datadir(lattice_str, "eigen", "eigen-dense-results.parquet")
-    temp_filepath = datadir(lattice_str, "eigen", "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).csv")
+    dense_filepath = datadir(lattice_str, "eigen", "eigen-dense-results.hdf5")
+    temp_filepath = datadir(lattice_str, "eigen", "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).json")
 
-    ResultType = NamedTuple{(:idx, :hopping, :interaction, :eigenindex, :eigenvalue),
-                         Tuple{Int, Float64, Float64, Int, Float64}}
-    if !isfile(dense_filepath)
-        results_table = DataFrame(ResultType[])
-    else
-        results_table = DataFrame(read_parquet(dense_filepath))
+    IdentifierType = NamedTuple{(:idx, :hopping, :interaction), Tuple{Int, Float64, Float64}}
+    existing_results = Set(IdentifierType[])
+    if isfile(dense_filepath)
+        f = h5open(dense_filepath, "r")
+        for c in f["eigen"]
+            idx = read(attributes(c)["idx"])
+            t = read(attributes(c)["hopping"])
+            U = read(attributes(c)["interaction"])
+            push!(existing_results, (idx=idx, hopping=t, interaction=U))
+        end
+        close(f)
     end
 
+    isdir(dirname(temp_filepath)) || mkpath(dirname(temp_filepath))
     output_file = open(temp_filepath, "w")
-    println(output_file, "idx,hopping,interaction,eigenindex,eigenvalue")
-
+    print(output_file, "[")
+    # println(output_file, "idx,hopping,interaction,eigenindex,eigenvalue")
+    isfirstitem = true
     for (idx, nup, ndn, tii, pii, pic) in sectors
         @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
-        if any(row.idx == idx && row.hopping == t && row.interaction == U for row in eachrow(results_table))
+        if (idx=idx, hopping=t, interaction=U) in existing_results
             @mylogmsg "Sector already calculated. Skipping $idx, $nup, $ndn, $tii, $pii, $pic."
             continue
         end
@@ -232,11 +240,18 @@ function eigen_dense(
         eigenvalues = eigvals!(Hermitian(hmat))
         @mylogmsg "Finished computing"
 
-        for (eigenindex, eigenvalue) in enumerate(eigenvalues)
-            println(output_file, "$idx,$t,$U,$eigenindex,$eigenvalue")
+        if !isfirstitem
+            print(output_file, ",")
+        else
+            isfirstitem = false
         end
+        print(
+            output_file,
+            JSON.json((idx=idx, hopping=t, interaction=U, eigenvalue=eigenvalues))
+        )
         flush(output_file)
     end
+    print(output_file,"]")
     close(output_file)
 end
 

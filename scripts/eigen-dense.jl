@@ -17,15 +17,16 @@ using Formatting
 
 using Logging
 using ArgParse
-using ProgressMeter
+using Dates
 
 using DataFrames
-using CSV
-
 using HDF5
-using JSON
+using Arrow
+using JSON3
 
 using UUIDs
+
+using ProgressMeter
 
 try
   @eval using MKL
@@ -40,19 +41,17 @@ function eigen_small(
     shape::AbstractMatrix{<:Integer},
     t::Real,
     U::Real,
-    ;
-    commitevery::Integer=1
 )
     lattice_str = lattice_string(latticetype, shape)
 
-    schedule_filepath = datadir(lattice_str, "schedule.csv")
-    schedule_table = CSV.read(schedule_filepath, DataFrame)
+    schedule_filepath = datadir(lattice_str, "schedule.arrow")
+    schedule_table = DataFrame(Arrow.Table(schedule_filepath))
     filter!(row->row.type == "small", schedule_table)
     sectors = Int[]
     for row in eachrow(schedule_table)
         push!(sectors, row.idx)
     end
-    return eigen_dense(latticetype, shape, t, U, sectors; commitevery=commitevery)
+    return eigen_dense(latticetype, shape, t, U, sectors)
 end
 
 
@@ -64,20 +63,19 @@ function eigen_dense(
     sector_indices::AbstractVector{<:Integer},
     ;
     force::Bool=false,
-    commitevery::Integer=1,
 )
     lattice_str = lattice_string(latticetype, shape)
-    sectors_filepath = datadir("sectors-$lattice_str.csv")
+    sectors_filepath = datadir("sectors-$lattice_str.arrow")
 
     select_table = DataFrame(idx=sector_indices)
-    sectors_table = CSV.read(sectors_filepath, DataFrame)
+    sectors_table = DataFrame(Arrow.Table(sectors_filepath))
 
     table = innerjoin(select_table, sectors_table, on=:idx)
     sectors = SectorType[]
     for row in eachrow(table)
         push!(sectors, (idx=row.idx, nup=row.nup, ndn=row.ndn, tii=row.tii, pii=row.pii, pic=row.pic))
     end
-    return eigen_dense(latticetype, shape, t, U, sectors; commitevery=commitevery, force=force)
+    return eigen_dense(latticetype, shape, t, U, sectors; force=force)
 end
 
 
@@ -89,7 +87,6 @@ function eigen_dense(
     sectors::AbstractVector{SectorType},
     ;
     force::Bool=false,
-    commitevery::Integer=1,
 )
     BR = UInt
 
@@ -160,17 +157,15 @@ function eigen_dense(
     psa = nothing
     ssa = nothing
 
-    @mylogmsg "Opening DB file"
-
     lattice_str = lattice_string(latticetype, shape)
     dense_filepath = datadir(lattice_str, "eigen", "eigen-dense-results.hdf5")
-    temp_filepath = datadir(lattice_str, "eigen", "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).json")
+    temp_filepath = datadir(lattice_str, "eigen", "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).jsonl")
 
     IdentifierType = NamedTuple{(:idx, :hopping, :interaction), Tuple{Int, Float64, Float64}}
     existing_results = Set(IdentifierType[])
     if isfile(dense_filepath)
         f = h5open(dense_filepath, "r")
-        for c in f["eigen"]
+        for c in f["eigen-dense"]
             idx = read(attributes(c)["idx"])
             t = read(attributes(c)["hopping"])
             U = read(attributes(c)["interaction"])
@@ -181,9 +176,9 @@ function eigen_dense(
 
     isdir(dirname(temp_filepath)) || mkpath(dirname(temp_filepath))
     output_file = open(temp_filepath, "w")
-    print(output_file, "[")
     # println(output_file, "idx,hopping,interaction,eigenindex,eigenvalue")
     isfirstitem = true
+    githash = Hubbard.getgithash()
     for (idx, nup, ndn, tii, pii, pic) in sectors
         @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
@@ -240,18 +235,12 @@ function eigen_dense(
         eigenvalues = eigvals!(Hermitian(hmat))
         @mylogmsg "Finished computing"
 
-        if !isfirstitem
-            print(output_file, ",")
-        else
-            isfirstitem = false
-        end
-        print(
+        println(
             output_file,
-            JSON.json((idx=idx, hopping=t, interaction=U, eigenvalue=eigenvalues))
+            JSON3.write((idx=idx, hopping=t, interaction=U, eigenvalue=eigenvalues, githash=githash, timestamp=string(Dates.now())))
         )
         flush(output_file)
     end
-    print(output_file,"]")
     close(output_file)
 end
 
@@ -276,9 +265,6 @@ function parse_commandline()
             action = :store_true
         "--debug", "-d"
             action = :store_true
-        "--commitevery"
-            arg_type = Int
-            default = 1
     end
     parse_args(s)
 end
@@ -299,7 +285,6 @@ function main()
     U = parsed_args["interaction"]
 
     sectors = parsed_args["sector"]
-    commitevery = parsed_args["commitevery"]
     force = parsed_args["force"]
 
     @mylogmsg "Starting $(first(ARGS))"
@@ -309,13 +294,12 @@ function main()
     @mylogmsg "U: $U"
     @mylogmsg "sectors: $sectors"
     @mylogmsg "BLAS: $(BLAS.get_config())"
-    @mylogmsg "commitevery: $commitevery"
     @mylogmsg "force: $force"
 
     if isempty(sectors)
-        eigen_small(latticetype, shape, t, U; commitevery=commitevery)
+        eigen_small(latticetype, shape, t, U)
     else
-        eigen_dense(latticetype, shape, t, U, sectors; commitevery=commitevery, force=force)
+        eigen_dense(latticetype, shape, t, U, sectors; force=force)
     end
     @mylogmsg "Finished writing"
 end

@@ -20,7 +20,7 @@ using ArgParse
 using ProgressMeter
 
 using HDF5
-using JSON
+using JSON3
 using Arrow
 using DataFrames
 using Serialization
@@ -52,7 +52,7 @@ function process_sparse(
 
     select_table = DataFrame(idx=sector_indices)
     sectors_table = DataFrame(Arrow.Table(sectors_filepath))
-    @mylogmsg "Finished reading CSV"
+    @mylogmsg "Finished reading sectors"
 
     table = innerjoin(select_table, sectors_table, on=:idx)
     sectors = SectorType[]
@@ -75,29 +75,29 @@ function getbytes(rng::MersenneTwister)
 end
 
 
-function write_status!(status_group::HDF5.Group, samplecount::Integer, rng::MersenneTwister)
-    if haskey(status_group, "samplecount")
-        delete_object(status_group, "samplecount")
-    end
-    write_dataset(status_group, "samplecount", samplecount)
-    io = IOBuffer()
-    serialize(io, rng)
-    seekstart(io)
-    buf = read(io)
-    if haskey(status_group, "random_number_generator")
-        rgen = status_group["random_number_generator"]
-        rgen[:] .= zero(UInt8)
-        rgen[1:length(buf)] = buf
-    else
-        n = length(buf)
-        # m = 2^Int(ceil(log2(n+1024)))
-        m = Int(ceil((n+512)/1024))*1024
-        resize!(buf, m)
-        buf[n+1:end] .= zero(UInt8)
-        status_group["random_number_generator"] = buf
-    end
-    close(io)
-end
+# function write_status!(status_group::HDF5.Group, samplecount::Integer, rng::MersenneTwister)
+#     if haskey(status_group, "samplecount")
+#         delete_object(status_group, "samplecount")
+#     end
+#     write_dataset(status_group, "samplecount", samplecount)
+#     io = IOBuffer()
+#     serialize(io, rng)
+#     seekstart(io)
+#     buf = read(io)
+#     if haskey(status_group, "random_number_generator")
+#         rgen = status_group["random_number_generator"]
+#         rgen[:] .= zero(UInt8)
+#         rgen[1:length(buf)] = buf
+#     else
+#         n = length(buf)
+#         # m = 2^Int(ceil(log2(n+1024)))
+#         m = Int(ceil((n+512)/1024))*1024
+#         resize!(buf, m)
+#         buf[n+1:end] .= zero(UInt8)
+#         status_group["random_number_generator"] = buf
+#     end
+#     close(io)
+# end
 
 
 function process_sparse(
@@ -182,8 +182,6 @@ function process_sparse(
     psa = nothing
     ssa = nothing
 
-    # output_file = open(temp_filepath, "w")
-    # println(output_file, "idx,hopping,interaction,seed,run,eigenindex,eigenvalue")
     lattice_str = lattice_string(latticetype, shape)
     githash = Hubbard.getgithash()
 
@@ -192,42 +190,35 @@ function process_sparse(
         @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
         output_groupname = savename(Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed))
-        output_filename = savename("eigen-sparse-results", Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed), "hdf5")
+        output_filename = savename("eigen-sparse-results", Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed), "qed")
         output_filepath = datadir(lattice_str, "eigen", "sparsedata", output_filename)
 
         @mylogmsg "File: $output_filepath"
-        isdir(dirname(output_filepath)) || mkpath(dirname(output_filepath))
-        output_file = h5open(output_filepath, "cw")
+        # isdir(dirname(output_filepath)) || mkpath(dirname(output_filepath))
+        # output_file = h5open(output_filepath, "cw")
+        isdir(output_filepath) || mkpath(output_filepath)
         
-        haskey(output_file, "eigen-sparse") || create_group(output_file, "eigen-sparse")
-        eigen_group = output_file["eigen-sparse"]
-
-        if !haskey(eigen_group, output_groupname) 
-            g = create_group(eigen_group, output_groupname)
-            attributes(g)["idx"] = idx
-            attributes(g)["hopping"] = t
-            attributes(g)["interaction"] = U
-            attributes(g)["krylovdim"] = krylovdim
-            attributes(g)["seed"] = seed
+        if !isfile(joinpath(output_filepath, "parameter.json"))
+            open(joinpath(output_filepath, "parameter.json"), "w") do io
+                JSON3.write(io, (idx=idx, hopping=t, interaction=U, krylovdim=krylovdim, seed=seed))
+            end
         end
-        data_group = eigen_group[output_groupname]
 
-        if haskey(data_group, "status")
+        if isfile(joinpath(output_filepath, "status"))
             @mylogmsg "Reading existing random number generator"
-            status_group = data_group["status"]
-            samplecount::Int = read(status_group["samplecount"])
-            rng_buf = read(status_group["random_number_generator"])
-            io = IOBuffer(rng_buf)
-            seekstart(io)
-            rng = deserialize(io)
-            close(io)
+            status = open(joinpath(output_filepath, "status"), "r") do io
+                deserialize(io)
+            end
+            samplecount = status.samplecount
+            rng = status.random_number_generator
         else
-            status_group = create_group(data_group, "status")
             @mylogmsg "Starting afresh"
             rng = MersenneTwister(seed)
             samplecount = 0
-            write_status!(status_group, samplecount, rng)
-            flush(output_file)
+            status = (samplecount=samplecount, random_number_generator=rng)
+            open(joinpath(output_filepath, "status"), "w") do io
+                serialize(io, status)
+            end
         end
 
         @mylogmsg "rng: $rng"
@@ -303,14 +294,13 @@ function process_sparse(
             GC.gc()
             hmat = SymTridiagonal(factorization.αs, factorization.βs)
             eigenvalues = eigvals!(hmat)
-            data_group["eigenvalue_$samplecount"] = eigenvalues
+            Arrow.write(joinpath(output_filepath, "eigenvalue_$samplecount.arrow"), (eigenvalue=eigenvalues,))
 
-            write_status!(status_group, samplecount, rng)
-
-            flush(output_file)
+            open(joinpath(output_filepath, "status"), "w") do io
+                serialize(io, (samplecount=samplecount, random_number_generator=rng))
+            end
             @mylogmsg "Wrote $samplecount"
         end
-        close(output_file)
     end # for (idx, nup, ndn, tii, pii, pic) in sectors
 end
 

@@ -4,15 +4,15 @@ using DrWatson
 using ArgParse
 using Hubbard
 
-using CSV
 using DataFrames
+using Arrow
 
 function schedule_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:Integer}, lo::Integer, hi::Integer)
     @assert 0 <= lo <= hi
     lattice_str = lattice_string(latticetype, shape)
 
     schedule = NamedTuple{(:idx, :type), Tuple{Int, String}}[]
-    df = CSV.read(datadir("sectors-$lattice_str.csv"), DataFrame)
+    df = DataFrame(Arrow.Table(datadir("sectors-$lattice_str.arrow")))
     for row in eachrow(df)
         row.dim <= 0 && continue            
         if row.dim <= lo
@@ -24,10 +24,10 @@ function schedule_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:I
         end
         push!(schedule, (idx=row.idx, type=type))
     end
-    schedule_filepath = datadir(lattice_str, "schedule.csv")
+    schedule_filepath = datadir(lattice_str, "schedule.arrow")
     schedule_directory = dirname(schedule_filepath)
     isdir(schedule_directory) || mkpath(schedule_directory)
-    CSV.write(schedule_filepath, schedule)
+    Arrow.write(schedule_filepath, schedule)
 end
 
 function parse_commandline()

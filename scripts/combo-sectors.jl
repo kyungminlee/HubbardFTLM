@@ -13,10 +13,9 @@ using Formatting
 using Logging
 using ArgParse
 
-using Parquet
 using DataFrames
 using ProgressMeter
-using CSV
+using Arrow
 
 function compute_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:Integer})
     BR = UInt
@@ -33,7 +32,7 @@ function compute_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:In
     end
     n_sites = numsites(mylattice.lattice.supercell)
 
-    lattice = mylattice.lattice
+    # lattice = mylattice.lattice
     ssymbed = mylattice.space_symmetry_embedding
     tsymbed = ssymbed.normal
     psymbed = ssymbed.rest
@@ -101,7 +100,22 @@ function compute_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:In
 
     sectors_df = DataFrame(sectors)
     isdir(datadir()) || mkpath(datadir())
-    CSV.write(datadir("sectors-$lattice_str.csv"), sectors_df)
+    Arrow.write(datadir("sectors-$lattice_str.arrow"), sectors_df)
+
+    # h5f = h5open(datadir("sectors-$lattice_str.hdf5"), "w")
+    # h5g_sectors = create_group(h5f, "sector")
+    # h5g_sectors["idx"] = sectors_df.idx
+    # h5g_sectors["nup"] = sectors_df.nup
+    # h5g_sectors["ndn"] = sectors_df.ndn
+    # h5g_sectors["tii"] = sectors_df.tii
+    # h5g_sectors["pii"] = sectors_df.pii
+    # h5g_sectors["pic"] = sectors_df.pic
+    # h5g_sectors["dim"] = sectors_df.dim
+    # attributes(h5g_sectors)["n_sites"] = n_sites
+    # attributes(h5g_sectors)["lattice"] = lattice_str
+    # attributes(h5g_sectors)["latticetype"] = latticetype
+    # attributes(h5g_sectors)["shape"] = shape
+    # close(h5f)
 end # function compute
 
 

@@ -1,7 +1,7 @@
 using DrWatson
-@quickactivate "Hubbard"
+@quickactivate "HubbardFTLM"
 
-using Hubbard
+using HubbardFTLM
 
 using LinearAlgebra
 using Random
@@ -178,7 +178,7 @@ function eigen_dense(
     output_file = open(temp_filepath, "w")
     # println(output_file, "idx,hopping,interaction,eigenindex,eigenvalue")
     isfirstitem = true
-    githash = Hubbard.getgithash()
+    githash = HubbardFTLM.getgithash()
     for (idx, nup, ndn, tii, pii, pic) in sectors
         @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 

@@ -1,4 +1,4 @@
-module Hubbard
+module HubbardFTLM
 
 export my_metafmt
 export @mylogmsg
@@ -15,7 +15,7 @@ export compute_thermodynamics_sparse
 include("Compute.jl")
 
 # export initialize_database
-# include("Database.jl")
+include("Database.jl")
 
 export myserialize, mydeserialize
 include("Serialize.jl")

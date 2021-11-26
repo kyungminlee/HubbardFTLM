@@ -1,8 +1,8 @@
 using DrWatson
-@quickactivate "Hubbard"
+@quickactivate "HubbardFTLM"
 
 using ArgParse
-using Hubbard
+using HubbardFTLM
 
 using DataFrames
 using Arrow

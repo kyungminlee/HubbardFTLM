@@ -1,7 +1,7 @@
 using DrWatson
-@quickactivate "Hubbard"
+@quickactivate "HubbardFTLM"
 
-using Hubbard
+using HubbardFTLM
 
 using LinearAlgebra
 using Random

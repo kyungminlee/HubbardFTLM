@@ -23,7 +23,7 @@ function my_metafmt(level, _module, group, id, file, line)
     #prefix = string(Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS" ))* " | " * string(level) * " | " * string(id) * " | RSS: $(BN(get_rss())) | "
     date_string = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS.sss")
     # prefix = "$(date_string) | $(level) | $(id) | RSS: $(BN(get_rss())) | "
-    prefix = "$(date_string) | $(level) | RSS: $(BN(get_rss())) | "
+    prefix = "$(date_string) | $(level) | RSS: $(BN(get_rss())) |"
     suffix = ""
     Logging.Info <= level < Logging.Warn && return color, prefix, suffix
     _module !== nothing && (suffix *= "$(_module)")

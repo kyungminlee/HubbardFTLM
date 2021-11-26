@@ -1,3 +1,24 @@
+using LibGit2
+
+function getgithash()
+    path = joinpath(dirname(pathof(@__MODULE__)), "..")
+    try
+        repo = LibGit2.GitRepo(path)
+        if LibGit2.isdirty(repo)
+            suffix="+"
+        else
+            suffix=""
+        end
+        return string(LibGit2.GitShortHash(LibGit2.GitHash(LibGit2.head(repo)), 6))*suffix
+    catch e
+        if isa(e, LibGit2.GitError)
+            return "unknown"
+        else
+            rethrow()
+        end
+    end
+end
+
 # using DBInterface
 # using SQLite
 

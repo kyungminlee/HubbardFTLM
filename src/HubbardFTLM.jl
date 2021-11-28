@@ -23,4 +23,7 @@ include("Serialize.jl")
 export write_lattice_yaml
 include("LatticeReport.jl")
 
+export findstar
+include("Star.jl")
+
 end

@@ -15,6 +15,7 @@ function make_square_lattice(shape::AbstractMatrix{<:Integer})
     supercell = lattice.supercell
     tsym = FiniteTranslationSymmetry(lattice)
     psym = little_symmetry(tsym, PointSymmetryDatabase.find2d("4mm"))
+    ssym = SymmorphicSymmetry(tsym, psym)
     tsymbed = embed(lattice, tsym)
     psymbed = embed(lattice, psym)
     ssymbed = SymmorphicSymmetryEmbedding(tsymbed, psymbed)
@@ -43,6 +44,7 @@ function make_square_lattice(shape::AbstractMatrix{<:Integer})
 
     return (unitcell=unitcell,
             lattice=lattice,
+            space_symmetry=ssym,
             space_symmetry_embedding=ssymbed,
             nearest_neighbor_bonds=nnbonds,
             next_nearest_neighbor_bonds=nnnbonds

@@ -183,11 +183,11 @@ function process_sparse(
     ssa = nothing
 
     lattice_str = lattice_string(latticetype, shape)
-    githash = Hubbard.getgithash()
+    githash = HubbardFTLM.getgithash()
 
     @mylogmsg "Starting"
     for (idx, nup, ndn, tii, pii, pic) in sectors
-        @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
+        @mylogmsg "Sector: idx=$idx, nup=$nup, ndn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
         output_groupname = savename(Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed))
         output_filename = savename("eigen-sparse-results", Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed), "qed")
@@ -268,6 +268,7 @@ function process_sparse(
             @mylogmsg "Sector has zero dimension. Skip."
             continue
         end
+        @mylogmsg "Hilbert space dimension: $D"
 
         @mylogmsg "Generating Hamiltonian representation"
         H = represent(rhsr, hamiltonian)

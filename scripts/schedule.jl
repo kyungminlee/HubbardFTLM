@@ -15,6 +15,8 @@ function schedule_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:I
     df = DataFrame(Arrow.Table(datadir("sectors-$lattice_str.arrow")))
     for row in eachrow(df)
         row.dim <= 0 && continue            
+        row.root_idx != row.idx && continue
+            
         if row.dim <= lo
             type = "small"
         elseif row.dim <= hi

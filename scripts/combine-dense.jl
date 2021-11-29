@@ -70,6 +70,7 @@ function main()
             attributes(group)["interaction"] = interaction
             attributes(group)["githash"] = githash
             attributes(group)["timestamp"] = timestamp
+            attributes(group)["type"] = "dense"
             group["eigenvalue"] = eigenvalues
             flush(dense_hdf5)
             push!(existing_results, identifier)

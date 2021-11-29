@@ -12,6 +12,8 @@ project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("lattice_str", type=str)
+    parser.add_argument("scheduletype", type=str)
+    parser.add_argument("--cutoff", type=int, default=100)
     args = parser.parse_args()
     lattice_str = args.lattice_str
 
@@ -22,10 +24,12 @@ def main():
     dense_filepath = os.path.join(project_dir, "data", lattice_str, "eigen", "eigen-dense-results.hdf5")
     sparse_filepath = os.path.join(project_dir, "data", lattice_str, "eigen", "sparsedata")
 
-    # indices = schedule_df.idx[(schedule_df.type == "dense") & (schedule_df.type == "small")]
-    # print(find_missing_dense(dense_filepath, indices))
-    indices = schedule_df.idx[(schedule_df.type == "sparse")]
-    print(find_missing_sparse(sparse_filepath, indices, 10))
+    if args.scheduletype == "dense":
+        indices = schedule_df.idx[(schedule_df.type == "dense") & (schedule_df.type == "small")]
+        print(find_missing_dense(dense_filepath, indices))
+    elif args.scheduletype == "sparse":
+        indices = schedule_df.idx[(schedule_df.type == "sparse")]
+        print(find_missing_sparse(sparse_filepath, indices, args.cutoff))
 
 
 def find_missing_dense(dense_filepath: str, indices: list):

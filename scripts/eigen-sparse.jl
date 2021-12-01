@@ -17,12 +17,13 @@ using Formatting
 
 using Logging
 using ArgParse
+using Dates
 using ProgressMeter
 
-using HDF5
+using DataFrames
+# using Avro
 using JSON3
 using Arrow
-using DataFrames
 using Serialization
 
 using UUIDs
@@ -73,31 +74,6 @@ function getbytes(rng::MersenneTwister)
     buf = read(io)
     return buf
 end
-
-
-# function write_status!(status_group::HDF5.Group, samplecount::Integer, rng::MersenneTwister)
-#     if haskey(status_group, "samplecount")
-#         delete_object(status_group, "samplecount")
-#     end
-#     write_dataset(status_group, "samplecount", samplecount)
-#     io = IOBuffer()
-#     serialize(io, rng)
-#     seekstart(io)
-#     buf = read(io)
-#     if haskey(status_group, "random_number_generator")
-#         rgen = status_group["random_number_generator"]
-#         rgen[:] .= zero(UInt8)
-#         rgen[1:length(buf)] = buf
-#     else
-#         n = length(buf)
-#         # m = 2^Int(ceil(log2(n+1024)))
-#         m = Int(ceil((n+512)/1024))*1024
-#         resize!(buf, m)
-#         buf[n+1:end] .= zero(UInt8)
-#         status_group["random_number_generator"] = buf
-#     end
-#     close(io)
-# end
 
 
 function process_sparse(
@@ -189,7 +165,7 @@ function process_sparse(
     for (idx, nup, ndn, tii, pii, pic) in sectors
         @mylogmsg "Sector: idx=$idx, nup=$nup, ndn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
-        output_groupname = savename(Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed))
+        # output_groupname = savename(Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed))
         output_filename = savename("eigen-sparse-results", Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed), "qed")
         output_filepath = datadir(lattice_str, "eigen", "sparsedata", output_filename)
 
@@ -270,38 +246,53 @@ function process_sparse(
         end
         @mylogmsg "Hilbert space dimension: $D"
 
-        @mylogmsg "Generating Hamiltonian representation"
-        H = represent(rhsr, hamiltonian)
-        for r in 1:blocksize
-            @mylogmsg "Start computing"
-            if samplecount >= nsamples
-                @mylogmsg "samplecount $samplecount ≥ nsamples $nsamples"
-                break
-            end
-            samplecount += 1
-    
-            v = randn(rng, ComplexF64, D)
-            normalize!(v)
+        open(joinpath(output_filepath, "eigenvalues.jsonl"), "a") do output_file
+            @mylogmsg "Generating Hamiltonian representation"
+            H = represent(rhsr, hamiltonian)
+            for r in 1:blocksize
+                @mylogmsg "Start computing"
+                if samplecount >= nsamples
+                    @mylogmsg "samplecount $samplecount ≥ nsamples $nsamples"
+                    break
+                end
+                samplecount += 1
+        
+                v = randn(rng, ComplexF64, D)
+                normalize!(v)
 
-            iterator = LanczosIterator(x -> H*x, v)
-            factorization = initialize(iterator)
-            sizehint!(factorization, krylovdim)
-            @mylogmsg "Finished sizehint!"
-            for d in 1:krylovdim-1
-                expand!(iterator, factorization)
-                # @mylogmsg "Expanded factorization to $d"
+                iterator = LanczosIterator(x -> H*x, v)
+                factorization = initialize(iterator)
+                sizehint!(factorization, krylovdim)
+                @mylogmsg "Finished sizehint!"
+                for d in 1:krylovdim-1
+                    expand!(iterator, factorization)
+                    # @mylogmsg "Expanded factorization to $d"
+                end
+                @mylogmsg "Garbage collecting after Krylov"
+                GC.gc()
+                hmat = SymTridiagonal(factorization.αs, factorization.βs)
+                eigenvalues = eigvals!(hmat)
+                
+                println(
+                    output_file,
+                    JSON3.write((
+                        hopping=t, interaction=U, idx=idx,
+                        type="sparse",
+                        krylovdim="krylovdim",
+                        seed=seed,
+                        run=samplecount,
+                        eigenvalues=eigenvalues,
+                        timestamp=Int64(round(Dates.datetime2unix(Dates.now()) * 1000)),
+                        description="{\"githash\": \"$githash\"}",
+                    ))
+                )
+                open(joinpath(output_filepath, "status"), "w") do io
+                    serialize(io, (samplecount=samplecount, random_number_generator=rng))
+                end
+                flush(output_file)
+                @mylogmsg "Wrote $samplecount"
             end
-            @mylogmsg "Garbage collecting after Krylov"
-            GC.gc()
-            hmat = SymTridiagonal(factorization.αs, factorization.βs)
-            eigenvalues = eigvals!(hmat)
-            Arrow.write(joinpath(output_filepath, "eigenvalue_$samplecount.arrow"), (eigenvalue=eigenvalues,))
-
-            open(joinpath(output_filepath, "status"), "w") do io
-                serialize(io, (samplecount=samplecount, random_number_generator=rng))
-            end
-            @mylogmsg "Wrote $samplecount"
-        end
+        end # open
     end # for (idx, nup, ndn, tii, pii, pic) in sectors
 end
 
@@ -364,9 +355,7 @@ function main()
     krylovdim = parsed_args["krylovdim"]
     blocksize = parsed_args["blocksize"]
     nsamples = parsed_args["nsamples"]
-
     sectors = parsed_args["sector"]
-
 
     @mylogmsg "Starting $(first(ARGS))"
     @mylogmsg "shape: $shape"

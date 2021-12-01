@@ -1,0 +1,23 @@
+{
+    "doc": "Eigenspectrum of Hamiltonian using Finite Temperature Lanczos",
+    "name": "Eigenspectrum",
+    "type": "record",
+    "fields": [
+        {"name": "hopping", "type": "double", "order": "ascending"},
+        {"name": "interaction", "type": "double", "order": "ascending"},
+        {"name": "idx", "type": "long", "order": "ascending"},
+        {"name": "type", "type": "string", "order": "ignore" },
+        {"name": "eigenvalues",
+         "type": {
+            "type": "array",
+            "items": {
+                "name": "eigenvalue",
+                "type": "double"
+            }
+         },
+         "order": "ignore"
+        },
+        {"name": "timestamp", "type": "long", "logicalType": "timestamp-millis", "order": "ignore"},
+        {"name": "description", "type": "string", "default": "", "order": "ignore"}
+    ] 
+}

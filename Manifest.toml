@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.0-rc3"
+julia_version = "1.7.0"
 manifest_format = "2.0"
 
 [[deps.Adapt]]
@@ -44,9 +44,9 @@ version = "0.5.10"
 
 [[deps.BitIntegers]]
 deps = ["Random"]
-git-tree-sha1 = "f50b5a99aa6ff9db7bf51255b5c21c8bc871ad54"
+git-tree-sha1 = "5a814467bda636f3dde5c4ef83c30dd0a19928e0"
 uuid = "c3b6d118-76ef-56ca-8cc7-ebb389d030a1"
-version = "0.2.5"
+version = "0.2.6"
 
 [[deps.Blosc]]
 deps = ["Blosc_jll"]
@@ -189,10 +189,10 @@ uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 version = "1.11.2"
 
 [[deps.FilePathsBase]]
-deps = ["Dates", "Mmap", "Printf", "Test", "UUIDs"]
-git-tree-sha1 = "618835ab81e4a40acf215c98768978d82abc5d97"
+deps = ["Compat", "Dates", "Mmap", "Printf", "Test", "UUIDs"]
+git-tree-sha1 = "04d13bfa8ef11720c24e4d840c0033d145537df7"
 uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
-version = "0.9.16"
+version = "0.9.17"
 
 [[deps.FiniteTemperatureLanczos]]
 deps = ["KrylovKit", "LinearAlgebra"]
@@ -489,6 +489,12 @@ git-tree-sha1 = "afadeba63d90ff223a6a48d2009434ecee2ec9e8"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
 version = "1.7.1"
 
+[[deps.Quadmath]]
+deps = ["Printf", "Random", "Requires"]
+git-tree-sha1 = "5a8f74af8eae654086a1d058b4ec94ff192e3de0"
+uuid = "be4d8f0f-7fa4-5f49-b795-2f01399ab2dd"
+version = "0.5.5"
+
 [[deps.QuantumHamiltonian]]
 deps = ["Dates", "GroupTools", "LatticeTools", "LinearAlgebra", "Random", "SparseArrays", "StaticArrays", "StatsBase"]
 git-tree-sha1 = "a555a73b5c05bed858139af81d95142878533030"
@@ -522,9 +528,9 @@ deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[deps.RecipesBase]]
-git-tree-sha1 = "44a75aa7a527910ee3d1751d1f0e4148698add9e"
+git-tree-sha1 = "6bf3f380ff52ce0832ddd3a2a7b9538ed1bcca7d"
 uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.1.2"
+version = "1.2.1"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -659,10 +665,10 @@ uuid = "b718987f-49a8-5099-9789-dcd902bef87d"
 version = "1.0.1"
 
 [[deps.Thrift]]
-deps = ["Distributed", "Sockets", "ThriftJuliaCompiler_jll"]
-git-tree-sha1 = "ff38ee13969799b79529507ff623e489b2186ec4"
+deps = ["CodecZlib", "CodecZstd", "Distributed", "Sockets", "ThriftJuliaCompiler_jll", "TranscodingStreams"]
+git-tree-sha1 = "3da5858caabd351ee845bb1d547e4d70dbc65b20"
 uuid = "8d9c9c80-f77e-5080-9541-c6f69d204e22"
-version = "0.8.3"
+version = "0.8.4"
 
 [[deps.ThriftJuliaCompiler_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]

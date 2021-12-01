@@ -20,9 +20,8 @@ using ArgParse
 using Dates
 
 using DataFrames
-using HDF5
-using Arrow
 using JSON3
+using Arrow
 
 using UUIDs
 
@@ -43,14 +42,10 @@ function eigen_small(
     U::Real,
 )
     lattice_str = lattice_string(latticetype, shape)
-
-    schedule_filepath = datadir(lattice_str, "schedule.arrow")
-    schedule_table = DataFrame(Arrow.Table(schedule_filepath))
-    filter!(row->row.type == "small", schedule_table)
-    sectors = Int[]
-    for row in eachrow(schedule_table)
-        push!(sectors, row.idx)
+    schedule_table = open(datadir(lattice_str, "schedule.arrow"), "r") do io
+        Arrow.Table(io)
     end
+    sectors::Vector{Int} = schedule_table.idx[schedule_table.type .== "small"]
     return eigen_dense(latticetype, shape, t, U, sectors)
 end
 
@@ -61,21 +56,20 @@ function eigen_dense(
     t::Real,
     U::Real,
     sector_indices::AbstractVector{<:Integer},
-    ;
-    force::Bool=false,
 )
     lattice_str = lattice_string(latticetype, shape)
-    sectors_filepath = datadir("sectors-$lattice_str.arrow")
-
+    sectors_table = open(datadir("sectors-$lattice_str.arrow"), "r") do io
+        buf = read(io)
+        DataFrame(Arrow.Table(buf))
+    end
     select_table = DataFrame(idx=sector_indices)
-    sectors_table = DataFrame(Arrow.Table(sectors_filepath))
 
     table = innerjoin(select_table, sectors_table, on=:idx)
     sectors = SectorType[]
     for row in eachrow(table)
         push!(sectors, (idx=row.idx, nup=row.nup, ndn=row.ndn, tii=row.tii, pii=row.pii, pic=row.pic))
     end
-    return eigen_dense(latticetype, shape, t, U, sectors; force=force)
+    return eigen_dense(latticetype, shape, t, U, sectors)
 end
 
 
@@ -85,8 +79,6 @@ function eigen_dense(
     t::Real,
     U::Real,
     sectors::AbstractVector{SectorType},
-    ;
-    force::Bool=false,
 )
     BR = UInt
 
@@ -158,26 +150,23 @@ function eigen_dense(
     ssa = nothing
 
     lattice_str = lattice_string(latticetype, shape)
-    dense_filepath = datadir(lattice_str, "eigen", "eigen-dense-results.hdf5")
+    dense_filepath = datadir(lattice_str, "eigen", "eigen-dense-results.avro") # result files are avro
     temp_filepath = datadir(lattice_str, "eigen", "temp-eigen-dense-$(uuid5(uuid1(), gethostname())).jsonl")
 
-    IdentifierType = NamedTuple{(:idx, :hopping, :interaction), Tuple{Int, Float64, Float64}}
+    IdentifierType = NamedTuple{(:hopping, :interaction, :idx), Tuple{Float64, Float64, Int}}
     existing_results = Set(IdentifierType[])
     if isfile(dense_filepath)
-        f = h5open(dense_filepath, "r")
-        for c in f["eigen-dense"]
-            idx = read(attributes(c)["idx"])
-            t = read(attributes(c)["hopping"])
-            U = read(attributes(c)["interaction"])
-            push!(existing_results, (idx=idx, hopping=t, interaction=U))
+        let table = open(dense_filepath, "r") do io
+                Avro.readtable(io)
+            end
+            for row in eachrow(table)
+                push!(existing_results, (hopping=row.hopping, interaction=row.interaction, idx=row.idx))
+            end
         end
-        close(f)
     end
 
     isdir(dirname(temp_filepath)) || mkpath(dirname(temp_filepath))
     output_file = open(temp_filepath, "w")
-    # println(output_file, "idx,hopping,interaction,eigenindex,eigenvalue")
-    isfirstitem = true
     githash = HubbardFTLM.getgithash()
     for (idx, nup, ndn, tii, pii, pic) in sectors
         @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
@@ -237,7 +226,13 @@ function eigen_dense(
 
         println(
             output_file,
-            JSON3.write((idx=idx, hopping=t, interaction=U, eigenvalue=eigenvalues, githash=githash, timestamp=string(Dates.now())))
+            JSON3.write((
+                hopping=t, interaction=U, idx=idx,
+                type="dense",
+                eigenvalues=eigenvalues,
+                timestamp=Int64(round(Dates.datetime2unix(Dates.now()) * 1000)),
+                description="{\"githash\": \"$githash\"}",
+            ))
         )
         flush(output_file)
     end
@@ -261,8 +256,6 @@ function parse_commandline()
         "--sector"
             arg_type = Int
             nargs = '*'
-        "--force", "-f"
-            action = :store_true
         "--debug", "-d"
             action = :store_true
     end
@@ -285,7 +278,6 @@ function main()
     U = parsed_args["interaction"]
 
     sectors = parsed_args["sector"]
-    force = parsed_args["force"]
 
     @mylogmsg "Starting $(first(ARGS))"
     @mylogmsg "latticetype: $latticetype"
@@ -294,12 +286,11 @@ function main()
     @mylogmsg "U: $U"
     @mylogmsg "sectors: $sectors"
     @mylogmsg "BLAS: $(BLAS.get_config())"
-    @mylogmsg "force: $force"
 
     if isempty(sectors)
         eigen_small(latticetype, shape, t, U)
     else
-        eigen_dense(latticetype, shape, t, U, sectors; force=force)
+        eigen_dense(latticetype, shape, t, U, sectors)
     end
     @mylogmsg "Finished writing"
 end

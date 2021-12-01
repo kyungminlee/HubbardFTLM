@@ -12,18 +12,19 @@ using QuantumHamiltonianParticle
 using Formatting
 using Logging
 using ArgParse
-
-using DataFrames
-using Arrow
 using UUIDs
+
 using JSON3
+using Arrow
 
 function compute_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:Integer}, indices::AbstractVector{<:Integer})
     BR = UInt
     lattice_str = lattice_string(latticetype, shape)
-    sectors_df = DataFrame(Arrow.Table(datadir("sectors-$lattice_str.arrow")))
+    sectors_table = open(datadir("sectors-$lattice_str.arrow"), "r") do io
+        Arrow.Table(io)
+    end
     if isempty(indices)
-        indices = sectors_df.idx[sectors_df.idx .!= sectors_df.root_idx]
+        indices = sectors_table.idx[sectors_table.idx .== sectors_table.root_idx]
     end
 
     # Set up lattice
@@ -82,14 +83,14 @@ function compute_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:In
     jsonl_filepath = datadir("sectors-$lattice_str-$(uuid5(uuid1(), gethostname())).jsonl")
     jsonl_file = open(jsonl_filepath, "w")
     for idx_ in indices
-        row = sectors_df[idx_, :]
-        idx = row.idx
-        nup = row.nup
-        ndn = row.ndn
-        tii = row.tii
-        pii = row.pii
-        pic = row.pic
-        root_idx = row.root_idx
+        idx = sectors_table.idx[idx_]
+        nup = sectors_table.nup[idx_]
+        ndn = sectors_table.ndn[idx_]
+        tii = sectors_table.tii[idx_]
+        pii = sectors_table.pii[idx_]
+        pic = sectors_table.pic[idx_]
+        root_idx = sectors_table.root_idx[idx_]
+        @assert idx == idx_
 
         @mylogmsg "Sector: idx=$idx, nup=$nup, nn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
@@ -145,7 +146,6 @@ function parse_commandline()
         "indices"
             arg_type = Int
             nargs = '*'
-            required = true
     end
     parse_args(s)
 end

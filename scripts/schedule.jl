@@ -4,7 +4,8 @@ using DrWatson
 using ArgParse
 using HubbardFTLM
 
-using DataFrames
+# using DataFrames
+using Tables
 using Arrow
 
 function schedule_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:Integer}, lo::Integer, hi::Integer)
@@ -12,15 +13,14 @@ function schedule_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:I
     lattice_str = lattice_string(latticetype, shape)
 
     schedule = NamedTuple{(:idx, :type), Tuple{Int, String}}[]
-    df = DataFrame(Arrow.Table(datadir("sectors-$lattice_str.arrow")))
-    for row in eachrow(df)
-        row.dim <= 0 && continue            
+    sectors_table = Arrow.Table(datadir("sectors-$lattice_str.arrow"))
+    for row in Tables.rows(sectors_table)
+        row.dim <= 0 && continue
         row.root_idx != row.idx && continue
-            
         if row.dim <= lo
             type = "small"
         elseif row.dim <= hi
-            type="dense"
+            type = "dense"
         else
             type = "sparse"
         end

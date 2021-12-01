@@ -19,9 +19,5 @@ def main():
     idx_list = df.idx[df.type==args.type].tolist()
     print("\n".join(str(x) for x in idx_list))
 
-# with open(filepath, "rb") as io:
-#     reader = fastavro.reader(io)
-#     df = pd.DataFrame.from_records([r for r in reader])
-
 if __name__=='__main__':
     main()

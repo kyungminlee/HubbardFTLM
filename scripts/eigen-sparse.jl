@@ -271,16 +271,17 @@ function process_sparse(
                 @mylogmsg "Garbage collecting after Krylov"
                 GC.gc()
                 hmat = SymTridiagonal(factorization.αs, factorization.βs)
-                eigenvalues = eigvals!(hmat)
+                eigenvalues, eigenvectors = eigen(hmat)
                 
                 println(
                     output_file,
                     JSON3.write((
                         hopping=t, interaction=U, idx=idx,
                         type="sparse",
-                        krylovdim="krylovdim",
+                        krylovdim=krylovdim,
                         seed=seed,
                         run=samplecount,
+                        coefficients=abs2.(view(eigenvectors, 1, :)),
                         eigenvalues=eigenvalues,
                         timestamp=Int64(round(Dates.datetime2unix(Dates.now()) * 1000)),
                         description="{\"githash\": \"$githash\"}",

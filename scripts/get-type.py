@@ -1,15 +1,27 @@
+#!/usr/bin/env python3
 import os
 import pandas as pd
-import pyarrow as pa
 import pyarrow.feather
-
 import argparse
+from pathlib import Path
 
-parser = argparse.ArgumentParser()
-parser.add_argument("lattice_str", type=str)
-parser.add_argument("type", type=str, choices=["small", "dense", "sparse"])
-args = parser.parse_args()
+project_dir = (Path(os.path.dirname(__file__)) / "..").resolve()
 
-df = pa.feather.read_table(os.path.join(os.path.dirname(__file__), "..", "data", args.lattice_str, "schedule.arrow")).to_pandas()
-idx_list = df.idx[df.type==args.type].tolist()
-print("\n".join(str(x) for x in idx_list))
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("lattice_str", type=str)
+    parser.add_argument("type", type=str, choices=["small", "dense", "sparse"])
+    args = parser.parse_args()
+
+    filepath = project_dir / "data" / args.lattice_str / "schedule.arrow"
+    df = pyarrow.feather.read_feather(str(filepath))
+
+    idx_list = df.idx[df.type==args.type].tolist()
+    print("\n".join(str(x) for x in idx_list))
+
+# with open(filepath, "rb") as io:
+#     reader = fastavro.reader(io)
+#     df = pd.DataFrame.from_records([r for r in reader])
+
+if __name__=='__main__':
+    main()

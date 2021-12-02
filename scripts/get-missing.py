@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
 import sys, os
-import h5py
+import pandas as pd
 import argparse
 import pyarrow.feather
 import glob
 import json
+import fastavro
+from pathlib import Path
 
-project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+project_dir = (Path(os.path.dirname(__file__)) / "..").resolve()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -18,56 +22,59 @@ def main():
     lattice_str = args.lattice_str
 
     print("Reading sectors")
-    sectors_df = pyarrow.feather.read_table(os.path.join(project_dir, "data", f"sectors-{lattice_str}.arrow")).to_pandas()
-    schedule_df = pyarrow.feather.read_table(os.path.join(project_dir, "data", lattice_str, "schedule.arrow")).to_pandas()
+    # sectors_df = pyarrow.feather.read_feather(str(project_dir / "data" / f"sectors-{lattice_str}.arrow"))
+    schedule_df = pyarrow.feather.read_feather(str(project_dir / "data" / lattice_str /"schedule.arrow"))
 
-    dense_filepath = os.path.join(project_dir, "data", lattice_str, "eigen", "eigen-dense-results.hdf5")
-    sparse_filepath = os.path.join(project_dir, "data", lattice_str, "eigen", "sparsedata")
+    dense_filepath = project_dir / "data" / lattice_str / "eigen" / "dense-results.avro"
+    sparse_filepath = project_dir / "data" / lattice_str / "eigen" / "sparsedata"
 
     if args.scheduletype == "dense":
         indices = schedule_df.idx[(schedule_df.type == "dense") & (schedule_df.type == "small")]
-        print(find_missing_dense(dense_filepath, indices))
+        with dense_filepath.open("rb") as io:
+            reader = fastavro.reader(io)
+            dense_table = pd.DataFrame([r for r in reader])
+        print(find_missing_dense(dense_table, indices))
     elif args.scheduletype == "sparse":
         indices = schedule_df.idx[(schedule_df.type == "sparse")]
         print(find_missing_sparse(sparse_filepath, indices, args.cutoff))
+    else:
+        print(f"unsupported type {args.scheduletype}")
 
 
-def find_missing_dense(dense_filepath: str, indices: list):
-
-    h5file = h5py.File(dense_filepath, "r")
-    h5group = h5file["eigen-dense"]
-
+def find_missing_dense(table, indices: list):
     all_parameters = set()
-    dense_group_lookup = {}
-    for child_name in h5group:
-        g = h5group[child_name]
-        idx = g.attrs["idx"]
-        t = g.attrs["hopping"]
-        U = g.attrs["interaction"]
-        dense_group_lookup[(idx, t, U)] = child_name
+    collection = set()
+    for _, row in table.iterrows():
+        t = row.hopping
+        U = row.interaction
+        idx = row.idx
         all_parameters.add((t, U))
-    h5file.close()
+        collection.add((t, U, idx))
 
     missing_values = []
     for (t, U) in all_parameters:
         for idx in indices:
-            if (idx, t, U) not in dense_group_lookup:
+            if (t, U, idx) not in collection:
                 missing_values.append((idx, t, U))
     return missing_values
 
-def find_missing_sparse(sparse_filepath: str, indices: list, cutoff: int):
+def find_missing_sparse(sparse_filepath: Path, indices: list, cutoff: int):
     all_parameters = set()
     sparse_group_count = {}
-    for qed_path in glob.glob(os.path.join(sparse_filepath, "*.qed")):
+    for qed_path in sparse_filepath.glob("*.qed"):
         # parameter.json
         # {"idx":10000,"hopping":1.0,"interaction":20.0,"krylovdim":100,"seed":1}
-        with open(os.path.join(qed_path, "parameter.json"), "r") as io:
+        with (qed_path / "parameter.json").open("r") as io:
             parameter = json.load(io)
-        idx = parameter["idx"]
         t = parameter["hopping"]
         U = parameter["interaction"]
-        count = len(glob.glob(os.path.join(qed_path, "eigenvalue_*.arrow")))
-        sparse_group_count[(idx, t, U)] = count
+        idx = parameter["idx"]
+        count = 0
+        with (qed_path / "eigenvalues.jsonl").open("r") as io:
+            for line in io:
+                if line.strip():
+                    count += 1
+        sparse_group_count[(t, U, idx)] = count
         all_parameters.add((t, U))
 
     # print(sparse_group_count)
@@ -75,8 +82,11 @@ def find_missing_sparse(sparse_filepath: str, indices: list, cutoff: int):
     missing_values = []
     for (t, U) in all_parameters:
         for idx in indices:
-            if (idx, t, U) not in sparse_group_count or sparse_group_count[(idx, t, U)] < cutoff:
-                missing_values.append((idx, t, U))
+            if (t, U, idx) not in sparse_group_count:
+                missing_values.append((t, U, idx, 0))
+            elif sparse_group_count[t, U, idx] < cutoff:
+                missing_values.append((t, U, idx, sparse_group_count[t, U, idx]))
+                
     return missing_values
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 project_dir = (Path(os.path.dirname(__file__)) / "..").resolve()
 
-with (project_dir / "src" / "eigenvalues.avsc").open("r") as f:
+with (project_dir / "src" / "eigenvalues-dense.avsc").open("r") as f:
     schema = json.load(f)
 parsed_schema = fastavro.parse_schema(schema)
 

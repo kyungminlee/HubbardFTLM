@@ -6,6 +6,7 @@ import fastavro
 import pandas as pd
 import argparse
 from pathlib import Path
+import progressbar
 
 project_dir = (Path(os.path.dirname(__file__)) / "..").resolve()
 
@@ -20,9 +21,11 @@ def main():
     input_paths = (project_dir / "data" / args.lattice_str / "eigen" / "sparsedata").glob("*.qed")
 
     result_filepath = (project_dir / "data" / args.lattice_str / "eigen" / "sparse-results.avro")
+
+    input_paths = list(input_paths)
     
     data = {}
-    for input_path in input_paths:
+    for input_path in progressbar.progressbar(input_paths):
         df = pd.read_json(str(input_path / "eigenvalues.jsonl"), lines=True)
         for _, row in df.iterrows():
             iden = (row.hopping, row.interaction, row.idx, row.seed, row.krylovdim)

@@ -22,6 +22,15 @@ function parse_commandline()
             arg_type = String
             required = false
             default = ""
+        "--charge", "-n"
+            arg_type = Int
+            required = true
+        "--hopping", "-t"
+            arg_type = Float64
+            required = true
+        "--interaction", "-U"
+            arg_type = Float64
+            required = true
         "--temperature", "-T"
             arg_type = Float64
             nargs = '+'
@@ -34,7 +43,8 @@ end
 function partition_generator(
         df_sectors::DataFrame,
         df_dense::DataFrame,
-        df_sparse::DataFrame;
+        df_sparse::DataFrame,
+        charge::Integer;
         dense_overwrite::Bool=true
     )
     function partition(temperature::Real) 
@@ -61,6 +71,10 @@ function partition_generator(
                 @assert iszero(partitions[row.idx])
                 partitioncount[row.idx] = 1
                 partitiontype[row.idx] = '0'
+            elseif row.charge != charge
+                partitions[row.idx] = 0
+                partitioncount[row.idx] = 1
+                partitiontype[row.idx] = 'x'
             elseif row.idx != row.root_idx
                 partitions[row.idx] = partitions[row.root_idx]
                 partitioncount[row.idx] = partitioncount[row.root_idx]
@@ -77,6 +91,10 @@ end
 function main()
     args = parse_commandline()
     latticetype, shape = parse_lattice(args["lattice"])
+    hopping = args["hopping"]
+    interaction = args["interaction"]
+    charge = args["charge"]
+
     lattice_str = lattice_string(latticetype, shape)
     n_sites = abs(shape[1,1] * shape[2,2] - shape[2,1] * shape[1,2])
 
@@ -99,18 +117,21 @@ function main()
         DataFrame(Avro.readtable(io))
     end
 
+    filter!(row->row.hopping == hopping && row.interaction == interaction && df_sectors[row.idx, :charge] == charge, df_dense)
+    filter!(row->row.hopping == hopping && row.interaction == interaction && df_sectors[row.idx, :charge] == charge, df_sparse)
+
     minimum_eigenvalue = min(mapreduce(minimum, min, df_dense.eigenvalues), mapreduce(minimum, min, df_sparse.eigenvalues))
 
     df_dense[!, :shifted_eigenvalues] = [row.eigenvalues .- minimum_eigenvalue for row in eachrow(df_dense)]
     df_sparse[!, :shifted_eigenvalues] = [row.eigenvalues .- minimum_eigenvalue for row in eachrow(df_sparse)]
 
-    ρf = partition_generator(df_sectors, df_dense, df_sparse)
+    ρf = partition_generator(df_sectors, df_dense, df_sparse, charge)
     temperatures = args["temperature"]
 
     susceptibilities = Float64[]
     for temperature in temperatures
-        fil = df_sectors.charge .== 9
         ρ, ρt = ρf(temperature)
+        fil = df_sectors.charge .== charge
         ρ = ρ[fil]
         sdf = df_sectors[fil, :]
         push!(susceptibilities, sum(sdf.Sz2 .* ρ) / sum(ρ) / n_sites / temperature)

@@ -3,6 +3,7 @@ name = "HubbardFTLM"
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
+Avro = "65fc3dcb-49af-4f0c-a340-607eef534a14"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"

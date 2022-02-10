@@ -79,7 +79,6 @@ function compute_sectors(latticetype::AbstractString, shape::AbstractMatrix{<:In
     psa = nothing
     ssa = nothing
 
-
     jsonl_filepath = datadir("sectors-$lattice_str-$(uuid5(uuid1(), gethostname())).jsonl")
     jsonl_file = open(jsonl_filepath, "w")
     for idx_ in indices
@@ -146,6 +145,7 @@ function parse_commandline()
         "indices"
             arg_type = Int
             nargs = '*'
+            help = "if not provided, compute all root sectors"
     end
     parse_args(s)
 end

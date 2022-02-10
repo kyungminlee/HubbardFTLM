@@ -1,5 +1,5 @@
 using LatticeTools
-using JSON
+using JSON3
 using DataStructures
 
 tostring(f::Rational{<:Integer}) = "$(f.num)/$(f.den)"
@@ -100,6 +100,6 @@ function write_lattice_yaml(lattice::Lattice, point_symmetry_name::AbstractStrin
         "equivalent_site_pairs" => y_site_pairs,
     )
     open(output_filename, "w") do f
-        write(f, JSON.json(y_output))
+        write(f, JSON3.json(y_output))
     end
 end

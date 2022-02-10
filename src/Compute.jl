@@ -226,7 +226,6 @@ function make_hamiltonian_ladder(triangular, t::Real, U::Real)
         cdag(i, :up) * c(i, :up) * cdag(i, :dn) * c(i, :dn)
             for i in 1:n_sites
     ) * U
-    # hamiltonian = embed(hs, hopping + interaction)
     hamiltonian = make_projector_operator(hopping + interaction)
     return hs, hamiltonian, c, cdag
 end

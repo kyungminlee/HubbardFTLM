@@ -100,6 +100,7 @@ function process_sparse(
         @mylogmsg "Unsupported lattice type $latticetype"
         exit(1)
     end
+    n_sites = numsites(mylattice.lattice.supercell)
 
     lattice = mylattice.lattice
     ssymbed = mylattice.space_symmetry_embedding
@@ -165,7 +166,6 @@ function process_sparse(
     for (idx, nup, ndn, tii, pii, pic) in sectors
         @mylogmsg "Sector: idx=$idx, nup=$nup, ndn=$ndn, tii=$tii, pii=$pii, pic=$pic"
 
-        # output_groupname = savename(Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed))
         output_filename = savename("eigen-sparse-results", Dict(:idx=>idx, :t=>t, :U=>U, :krylovdim=>krylovdim, :seed=>seed), "qed")
         output_filepath = datadir(lattice_str, "eigen", "sparsedata", output_filename)
 

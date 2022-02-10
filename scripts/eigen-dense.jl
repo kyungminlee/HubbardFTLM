@@ -91,6 +91,7 @@ function eigen_dense(
         @error "Unsupported lattice type $latticetype"
         exit(1)
     end
+    n_sites = numsites(mylattice.lattice.supercell)
 
     lattice = mylattice.lattice
     ssymbed = mylattice.space_symmetry_embedding

@@ -9,6 +9,7 @@ using Arrow
 using Quadmath
 using PyPlot
 using CSV 
+using ProgressMeter
 
 using ArgParse
 
@@ -98,6 +99,7 @@ function main()
     lattice_str = lattice_string(latticetype, shape)
     n_sites = abs(shape[1,1] * shape[2,2] - shape[2,1] * shape[1,2])
 
+    @mylogmsg "Reading sectors"
     df_sectors = let
         buf = open(datadir("sectors-$lattice_str.arrow"), "r") do io
             read(io)
@@ -110,32 +112,46 @@ function main()
         df
     end
 
+    @mylogmsg "Reading dense"
     df_dense = open(datadir(lattice_str, "eigen", "dense-results.avro"), "r") do io
         DataFrame(Avro.readtable(io))
     end
-    df_sparse = open(datadir(lattice_str, "eigen", "sparse-results.avro"), "r") do io
-        DataFrame(Avro.readtable(io))
+    if isfile(datadir(lattice_str, "eigen", "sparse-results.avro"))
+        @mylogmsg "Reading sparse"
+        df_sparse = open(datadir(lattice_str, "eigen", "sparse-results.avro"), "r") do io
+            DataFrame(Avro.readtable(io))
+        end
+    else
+        df_sparse = DataFrame([])
     end
 
+    @mylogmsg "Filtering"
     filter!(row->row.hopping == hopping && row.interaction == interaction && df_sectors[row.idx, :charge] == charge, df_dense)
     filter!(row->row.hopping == hopping && row.interaction == interaction && df_sectors[row.idx, :charge] == charge, df_sparse)
 
-    minimum_eigenvalue = min(mapreduce(minimum, min, df_dense.eigenvalues), mapreduce(minimum, min, df_sparse.eigenvalues))
+    @mylogmsg "Minimum eigenvalue"
+    minimum_eigenvalue = mapreduce(minimum, min, df_dense.eigenvalues)
+    if !isempty(df_sparse)
+        minimum_eigenvalue = min(minimum_eigenvalue, mapreduce(minimum, min, df_sparse.eigenvalues))
+    end
 
+    @mylogmsg "Computing shifted eigenvalues"
     df_dense[!, :shifted_eigenvalues] = [row.eigenvalues .- minimum_eigenvalue for row in eachrow(df_dense)]
     df_sparse[!, :shifted_eigenvalues] = [row.eigenvalues .- minimum_eigenvalue for row in eachrow(df_sparse)]
 
+    @mylogmsg "Generating partition function"
     ρf = partition_generator(df_sectors, df_dense, df_sparse, charge)
     temperatures = args["temperature"]
 
     susceptibilities = Float64[]
-    for temperature in temperatures
+    @showprogress for temperature in temperatures
         ρ, ρt = ρf(temperature)
         fil = df_sectors.charge .== charge
         ρ = ρ[fil]
         sdf = df_sectors[fil, :]
         push!(susceptibilities, sum(sdf.Sz2 .* ρ) / sum(ρ) / n_sites / temperature)
     end
+    @mylogmsg "Saving"
     df_out = DataFrame((temperature=temperatures, susceptibility=susceptibilities))
     if !isempty(args["out"])
         CSV.write(args["out"], df_out)
